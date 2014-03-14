@@ -3,13 +3,16 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using SkyEagle;
 
 namespace RoboScreenSniperDesktop
 {
-    public partial class Form1 : Form
+    public partial class MainForm : Form
     {
-        
-        public Form1()
+        /// <summary>
+        /// Construccion de la forma
+        /// </summary>
+        public MainForm()
         {
             SetBrowserFeatureControl();
 
@@ -17,6 +20,96 @@ namespace RoboScreenSniperDesktop
             InitializeComponent();
         }
 
+        #region Eventos de la Forma
+        private void button1_Click(object sender, EventArgs e)
+        {
+            Toggle();
+        }
+        /// <summary>
+        /// Tic que ocurre cada segundo
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            if (Contador >= Constants.DELAY_BETWEEN_SCREENSHOTS_SECONDS)
+            {
+                Contador = 0;
+                if(!backgroundWorker1.IsBusy)
+                    backgroundWorker1.RunWorkerAsync();
+            }
+
+            decimal progreso = 
+                Convert.ToDecimal(Contador) / Convert.ToDecimal(Constants.DELAY_BETWEEN_SCREENSHOTS_SECONDS) * 
+                Convert.ToDecimal(100);
+
+            progressBar1.Value = Convert.ToInt32(progreso);
+            Contador++;
+        }
+
+        private void Screenshot()
+        {
+            using (Bitmap bitmap = new Bitmap(webBrowser1.Width, webBrowser1.Height))
+            {
+                webBrowser1.DrawToBitmap(bitmap, new Rectangle(0, 0, webBrowser1.Width, webBrowser1.Height));
+                bitmap.Save(string.Format(this.Path + @"\" + Constants.SCREENSHOT_FILE_FORMAT, DateTime.Now.ToString(Constants.SCREENSHOT_TIMESTAMP_FORMAT)));
+            }
+        }
+        private void webBrowser1_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+        }
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            GoToIngress();
+            textBox1.Text = Path;
+        }
+        private void button2_Click(object sender, EventArgs e)
+        {
+            GoToIngress();
+        }
+        private void button3_Click(object sender, EventArgs e)
+        {
+            folderBrowserDialog1.SelectedPath = Path;
+            if (folderBrowserDialog1.ShowDialog(this) == System.Windows.Forms.DialogResult.OK)
+            {
+                Path = folderBrowserDialog1.SelectedPath;
+                textBox1.Text = Path;
+            }
+        }
+        #endregion
+
+        #region Campos
+
+        #endregion
+
+        #region Propiedades
+        /// <summary>
+        /// Contador de segundos
+        /// </summary>
+        public int Contador { get; set; }
+        /// <summary>
+        /// Bandera que indica si fue iniciado el proceso de captura de imagenes
+        /// </summary>
+        public bool Started { get; set; }
+        public string Path {
+            get 
+            {
+                return string.IsNullOrEmpty(this.path) ? 
+                    Constants.DEFAULT_PATH : 
+                    path;
+            }
+            set 
+            {
+                path = value;
+            }
+        }
+        #endregion
+
+        #region Campos
+        private string path = string.Empty;
+        #endregion
+
+        #region Metodos Privados
         private void SetBrowserFeatureControl()
         {
             // http://msdn.microsoft.com/en-us/library/ee330720(v=vs.85).aspx
@@ -54,11 +147,10 @@ namespace RoboScreenSniperDesktop
             SetBrowserFeatureControlKey("FEATURE_WINDOW_RESTRICTIONS ", fileName, 0);
             SetBrowserFeatureControlKey("FEATURE_XMLHTTP", fileName, 1);
         }
-
         private UInt32 GetBrowserEmulationMode()
         {
             int browserVersion = 7;
-            using (var ieKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Internet Explorer",
+            using (var ieKey = Registry.LocalMachine.OpenSubKey(Constants.REGISTRY_BROWSER_FEATURE_SUB_KEY,
                 RegistryKeyPermissionCheck.ReadSubTree,
                 System.Security.AccessControl.RegistryRights.QueryValues))
             {
@@ -67,7 +159,7 @@ namespace RoboScreenSniperDesktop
                 {
                     version = ieKey.GetValue("Version");
                     if (null == version)
-                        throw new ApplicationException("Microsoft Internet Explorer is required!");
+                        throw new ApplicationException(Constants.TEXT_IE_REQUIRED);
                 }
                 int.TryParse(version.ToString().Split('.')[0], out browserVersion);
             }
@@ -91,91 +183,34 @@ namespace RoboScreenSniperDesktop
 
             return mode;
         }
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-            Contador = 0;
-
-            if (Started)
-            {
-                button1.Text = "Start";
-            }
-            else
-            {
-                button1.Text = "STop";
-            }
-            
-            timer1.Enabled = !Started;
-            Started = !Started;
-            
-        }
-
-        string imagePathDefault = @"C:\Users\jbasurto\Google Drive\Ingress\";
-
-        /// <summary>
-        /// Contador de segundos
-        /// </summary>
-        public int Contador { get; set; }
-        /// <summary>
-        /// Bandera que indica si fue iniciado el proceso de captura de imagenes
-        /// </summary>
-        public bool Started { get; set; }
-        private void timer1_Tick(object sender, EventArgs e)
-        {
-            
-
-            if (Contador >= 10)
-            {
-                Contador = 0;
-                using (Bitmap bitmap = new Bitmap(webBrowser1.Width, webBrowser1.Height))
-                {
-                    webBrowser1.DrawToBitmap(bitmap, new Rectangle(0, 0, webBrowser1.Width, webBrowser1.Height));
-                    bitmap.Save(string.Format(imagePathDefault + "\\imagen{0}.png", DateTime.Now.ToString("_yyMMdd_HHmmss")));
-                }
-            }
-
-            progressBar1.Value = Contador / 10 * 100;
-            Contador++;
-        }
-
-        private void webBrowser1_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
-        {
-        }
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            GoToIngress();
-            textBox1.Text = imagePathDefault;
-        }
-
-        private void button2_Click(object sender, EventArgs e)
-        {
-            GoToIngress();
-        }
-
         private void GoToIngress()
         {
-            webBrowser1.Navigate("http://ingress.com/intel");
+            webBrowser1.Navigate(Constants.INGRESS_INTEL_URL);
         }
-
         private void SetBrowserFeatureControlKey(string feature, string appName, uint value)
         {
             using (var key = Registry.CurrentUser.CreateSubKey(
-                String.Concat(@"Software\Microsoft\Internet Explorer\Main\FeatureControl\", feature),
+                String.Concat(Constants.REGISTRY_BROWSER_FEATURE_CONTROL_KEY, feature),
                 RegistryKeyPermissionCheck.ReadWriteSubTree))
             {
                 key.SetValue(appName, (UInt32)value, RegistryValueKind.DWord);
             }
         }
-
-        private void button3_Click(object sender, EventArgs e)
+        private void Toggle()
         {
-            if (folderBrowserDialog1.ShowDialog(this) == System.Windows.Forms.DialogResult.OK)
-            {
-                imagePathDefault = folderBrowserDialog1.SelectedPath;
-                textBox1.Text = imagePathDefault;
-            }
+            button1.Text = Started ?
+                Constants.TEXT_START :
+                Constants.TEXT_STOP;
+
+            timer1.Enabled = !Started;
+            Started = !Started;
+            Contador = 0;
         }
-        
+        #endregion   
+
+        private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            Screenshot();
+        }
     }
 }
